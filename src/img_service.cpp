@@ -4,7 +4,7 @@
 #include "sensor_msgs/LaserScan.h"
 #include "sensor_msgs/Image.h"
 #include <cv_bridge/cv_bridge.h>
-//#include "apriltags_ros/AprilTagDetectionArray.h"
+#include "apriltags_ros/AprilTagDetectionArray.h"
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <vector>
@@ -12,19 +12,24 @@
 #include <sstream>
 #include <iostream>
 #include <algorithm>
+#include <image_transport/image_transport.h>
+
+
 
 const double PI = 3.1415;
 const int SCAN_COUNT = 5;
 cv::Mat tapes;
 
+image_transport::Publisher pub;
+
 bool lock = false;
 sensor_msgs::Image::ConstPtr recent_img;
-//apriltags_ros::AprilTagDetectionArray::ConstPtr tags;
+apriltags_ros::AprilTagDetectionArray::ConstPtr tags;
 
 cv::Point2f tag_location(int tag_id)
 {
-  /*
-     if (tags == NULL)
+  
+  if (tags == NULL)
      {
   //TODO error?
   return cv::Point2f(0,0);
@@ -32,16 +37,21 @@ cv::Point2f tag_location(int tag_id)
   else 
   {
   int index;
-  for (index=0; tags.detections[index].id != tag_id; index++)
+  for (index=0; tags->detections[index].id != tag_id; index++)
   {}
-  geometry_msgs::Pose pos = tags.detections[index].pose.pose;
+  geometry_msgs::Pose pos = tags->detections[index].pose.pose;
   return cv::Point2f(pos.position.x, pos.position.y);
   //NOTE: theta = pos.orientation
   //return cv::Point2f(20,20);
-  }*/
+  }
 }
 
-
+void publish_image(cv::Mat tapes_l)
+{
+  sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", tapes_l).toImageMsg();
+  pub.publish(msg);
+  ros::spinOnce();
+}
 void test_image(std::string path) 
 {
   /*
@@ -191,41 +201,13 @@ bool detect(img_service::TagDetection::Request &req,
   //  req.tag_Id;
   //  res.scan;
   lock = true;
-  if (recent_img == NULL)
+  if (tapes.empty())
   {
     ROS_INFO("No image found");
     return false;
   }
-  cv_bridge::CvImagePtr cv_ptr;
-  try 
-  {
-    cv_ptr = cv_bridge::toCvCopy(recent_img, sensor_msgs::image_encodings::BGR8);
-  }
-  catch (cv_bridge::Exception& e)
-  {
-    ROS_ERROR("cv_bridge exception: %s", e.what());
-    return false;
-  }
-  /*
-     if (cv_ptr->image.rows > 60 && cv_ptr->image.cols > 60)
-     cv::circle(cv_prt->image, cv::Point(50,50),10,CV_RGB(255,0,0));
-     cv::imshow(OPENCV_WINDOW,cv_ptr->image);
-     cv::waitKey(3);*/
-
-  //  cv_ptr->image;
-  cv::Mat img_hsv;
-  cv::cvtColor(cv_ptr->image, img_hsv, CV_BGR2HSV);
-  std::vector<cv::Mat> channels;
-  cv::split(img_hsv, channels);
-  for (int i=0; i<img_hsv.rows; i++)
-  {
-    for (int j=0; j<img_hsv.cols;j++) 
-    {  
-      // if (channels[0] > 200 && channels[0] > 255)
-      {
-      }
-    }
-  }
+  cv::Mat tapes_cpy = tapes.clone();
+  lock = false;
   res.scan.angle_min = 0.0f;
   res.scan.angle_max = 2.0f*PI;
   res.scan.angle_increment = 2.0f*PI/SCAN_COUNT;
@@ -241,6 +223,9 @@ bool detect(img_service::TagDetection::Request &req,
 
 void Callback_Img(const sensor_msgs::Image::ConstPtr& msg)
 {
+
+  if (lock) 
+return;
   /*
      lower_blue = 101, 99, 8
      upper_blue = 125, 255, 112
@@ -397,7 +382,11 @@ void Callback_Img(const sensor_msgs::Image::ConstPtr& msg)
      cv::waitKey(0);*/
   cv::Mat tapes_copy = tapes.clone();
   cv::addWeighted(dst, 0.5, tapes_copy, 0.5, 0.0, tapes);
+  publish_image(tapes);
+
+  return;
 }
+
 
 
 int main(int argc, char **argv)
@@ -423,7 +412,8 @@ int main(int argc, char **argv)
 */
   ros::init(argc, argv, "img_service_server");
   ros::NodeHandle n;
-
+    image_transport::ImageTransport it(n);
+   pub = it.advertise("img_service/image", 1);
   ros::ServiceServer service = n.advertiseService("img_service", detect);
   ros::Subscriber sub = n.subscribe("overhead_camera/image_rect_color", 10, Callback_Img);
   ROS_INFO("Service start");
