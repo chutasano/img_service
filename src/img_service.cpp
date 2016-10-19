@@ -250,7 +250,7 @@ void Callback_Img(const sensor_msgs::Image::ConstPtr& msg)
   if (msg == NULL)
   {
     ROS_INFO("No image found");
-    return false;
+    return;
   }
   cv_bridge::CvImagePtr cv_ptr;
   try 
@@ -260,7 +260,7 @@ void Callback_Img(const sensor_msgs::Image::ConstPtr& msg)
   catch (cv_bridge::Exception& e)
   {
     ROS_ERROR("cv_bridge exception: %s", e.what());
-    return false;
+    return;
   }
   
 
