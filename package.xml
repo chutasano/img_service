@@ -33,6 +33,10 @@
   <!-- Examples: -->
   <!-- Use build_depend for packages you need at compile time: -->
   <build_depend>message_generation</build_depend>
+  <build_depend>apriltags_ros</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>cv_bridge</build_depend>
+  <!-- TODO add more? -->
   <!-- Use buildtool_depend for build tool packages: -->
   <!--   <buildtool_depend>catkin</buildtool_depend> -->
   <!-- Use run_depend for packages you need at runtime: -->
