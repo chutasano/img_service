@@ -164,7 +164,7 @@ bool detect(img_service::TagDetection::Request &req,
     cv::Point2f point = tag_location(req.tag_Id);
     lock_tags = false;
 
-    float angle = 0;
+    float angle = 0; //TODO implement angle
     res.scan.angle_min = SCAN_MIN_ANGLE;
     res.scan.angle_max = SCAN_MAX_ANGLE;
     res.scan.angle_increment = SCAN_INCREMENT;
