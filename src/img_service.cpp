@@ -68,7 +68,7 @@ cv::Point2f tag_location(int tag_id)
     else 
     {
 	int index;
-	for (index=0; tags->detections[index].id != tag_id; index++)
+	for (index=0; tags->detections[index].id != tag_id || index<tags->detections.size(); index++)
 	{
 	    if (index > 5) //TODO change to actual size
 	    {
