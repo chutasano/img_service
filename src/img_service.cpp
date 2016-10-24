@@ -35,8 +35,8 @@ const cv::Scalar HSV_BLUE_MAX = cv::Scalar(125, 255, 112); //max blue
 const float ROBOT_RADIUS = 3.0f; //used to draw robots as obstacles
 
 //PUB NAMES
-const string CAMERA_PUBLISHER_NAME = "overhead_camera/image_rect_color";
-const string TAGS_PUBLISHER_NAME = "insert";
+const std::string CAMERA_PUBLISHER_NAME = "overhead_camera/image_rect_color";
+const std::string TAGS_PUBLISHER_NAME = "change";
 
 cv::Mat tapes;
 
@@ -48,7 +48,14 @@ bool lock_tags = false;
 sensor_msgs::Image::ConstPtr recent_img;
 apriltags_ros::AprilTagDetectionArray::ConstPtr tags;
 
-void test_image(std::string a);
+
+void draw_robots(std::vector<cv::Point2f> tag_pos, cv::Mat* canvas)
+{
+  for (int i=0; i<tag_pos.size(); i++)
+  { //TODO const
+    cv::circle(*canvas, tag_pos[i], ROBOT_RADIUS, cv::Scalar(0),-1);
+  }
+}
 
 cv::Point2f tag_location(int tag_id)
 {
@@ -233,10 +240,26 @@ void Callback_Img(const sensor_msgs::Image::ConstPtr& msg)
     cv::cvtColor(image, img_hsv, CV_BGR2HSV);
     cv::inRange(img_hsv, HSV_BLUE_MIN, HSV_BLUE_MAX, img_display);
 
-    cv::Mat dst, cdst;  
+    cv::Mat dst, cdst;
+    
     //  Canny(img_display, dst, 50, 200, 3);
     dst = img_display.clone();
-    Canny(img_display, cdst, 50, 200, 3); 
+    Canny(img_display, cdst, 50, 200, 3);
+    if (lock_tags)
+    {
+      //TODO consider exiting
+    }
+    else
+    {
+      lock_tags = true;
+      std::vector<cv::Point2f> points;
+      for (int i=0; i<tags->detections.size(); i++)
+      {
+        points.push_back(cv::Point2f(tags->detections[i].pose.pose.position.x, tags->detections[i].pose.pose.position.y));
+      }
+      draw_robots(points, &cdst); 
+      lock_tags = false;
+    }
 
     std::vector<std::vector<cv::Point> > contours;
     std::vector<cv::Vec4i> hierarchy;
@@ -323,24 +346,6 @@ void Callback_Img(const sensor_msgs::Image::ConstPtr& msg)
 int main(int argc, char **argv)
 {
 
-    /*
-       test_image("src/img_service/src/img_0.jpg");
-       test_image("src/img_service/src/img_1.jpg");
-       test_image("src/img_service/src/img_2.jpg");
-       imshow("woof", tapes);
-       cv::waitKey(0);*/
-    //  tapes = NULL;
-    /*
-       for (int i=3; i<11; i++)
-       {
-       std::stringstream ss;
-       ss << "src/img_service/src/img_" << i << ".png";
-       test_image(ss.str());
-       }
-       imshow("woof", tapes);
-       cv::waitKey(0);
-       return 0;
-     */
     ros::init(argc, argv, "img_service_server");
     ros::NodeHandle n;
     image_transport::ImageTransport it(n);
@@ -352,141 +357,6 @@ int main(int argc, char **argv)
     ros::spin();
 
     return 0;
-}
-
-void test_image(std::string path) 
-    if (image.empty()) 
-    {
-	ROS_INFO("Cant open image");
-	return;
-    }
-    if (tapes.empty()) //init
-    {
-	tapes = cv::Mat(image.size(), CV_8UC1);
-	tapes = cv::Scalar(127);
-    }
-    cv::blur(image,image, cv::Size(3,3)); //TODO might need to adjust
-    cv::Mat img_hsv, img_threshold, img_display;
-    cv::cvtColor(image, img_hsv, CV_BGR2HSV);
-    cv::inRange(img_hsv, cv::Scalar(101,99,8), cv::Scalar(125,255,112) , img_display);
-    //imshow(path+"_hsv", img_display);
-    //std::vector<cv::Mat> channels;
-    //  cv::split(img_hsv, channels);
-
-    //  cv::threshold(img_hsv, img_threshold, 100.0f, 120.0f, 3);  
-    //  cv::Mat d;
-    //  cv::cvtColor(img_display, d, CV_HSV2BGR);
-
-    cv::Point2f src = tag_location(10);
-    std::vector<cv::Vec2f> lines;
-    cv::Mat dst, cdst;  
-    //  Canny(img_display, dst, 50, 200, 3);
-    dst = img_display.clone();
-    Canny(img_display, cdst, 50, 200, 3); 
-
-    std::vector<std::vector<cv::Point> > contours;
-    std::vector<cv::Vec4i> hierarchy;
-    cv::findContours(cdst, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE, cv::Point(0, 0) );
-    cv::Mat drawing = cv::Mat::zeros(cdst.size(), CV_8UC3 );
-
-    /* //probably don't need because it's taken care of later
-       for (int i=1; i<contours.size()-1; i++)
-       {
-       if (cv::contourArea(contours[i], true) < 0) 
-       {
-    //remove duplicates
-    contours.erase(contours.begin() + i--);
-    }
-    }*/
-
-    int before = contours.size();
-    for (int i=0; i<contours.size(); i++)
-    {
-	//    std::cout << cv::contourArea(contours[i]) << ", ";
-	if (cv::contourArea(contours[i]) > 30) //TODO threshold
-	{
-	    hierarchy.erase(hierarchy.begin() + i);
-	    contours.erase(contours.begin() + i--);
-	}
-    }
-    std::cout << "Passed contours: " << before - contours.size() << "\n";
-
-    /*
-       for(int i=0; i<contours.size(); i++)
-       {
-       std::stringstream ss;
-       ss << "contourr " << i;
-       cv::Mat contour1 = cv::Mat::zeros(cdst.size(), CV_8UC3);
-       cv::drawContours(contour1, contours, i, cv::Scalar(255,255,255),2,8,hierarchy,0,cv::Point() );
-       imshow(ss.str(), contour1);
-       }
-     */
-
-    std::vector<std::vector<cv::Point> > contours_poly( contours.size() );
-    std::vector<cv::Rect> boundRect( contours.size() );
-    std::vector<cv::Point2f> center( contours.size() );
-    std::vector<float>radius( contours.size() );
-    for (int i=0; i<contours.size(); i++)
-    {
-	if (cv::contourArea(contours[i], true) < 0) //fix counter clockwise
-	{
-	    std::reverse(contours[i].begin(), contours[i].end());
-	}
-    }
-    before = contours.size();
-    for (int i=0; i<contours.size(); i++)
-    {
-	cv::approxPolyDP( cv::Mat(contours[i]), contours_poly[i], 3, true );
-	boundRect[i] = cv::boundingRect( cv::Mat(contours_poly[i]) );
-	cv::minEnclosingCircle( (cv::Mat)contours_poly[i], center[i], radius[i] );
-	float tape_circle = 0.5; //TODO threshold
-	float rect_obj = (cv::contourArea(contours[i]) / (boundRect[i].width*boundRect[i].height));
-	//  std::cout << rect_obj << ", ";
-	if (rect_obj > .8 && rect_obj < 1 && cv::contourArea(contours[i]) > 10)
-	{
-	    center.erase(center.begin() + i);
-	    radius.erase(radius.begin() + i);
-	    boundRect.erase(boundRect.begin() + i);  
-	    hierarchy.erase(hierarchy.begin() + i);
-	    contours.erase(contours.begin() + i--);
-
-	}
-	/*    if (cv::contourArea(contours[i])/(PI*radius[i]*radius[i]) < tape_circle)
-	      {
-	//remove this, probably not tape
-	//also remove these if plan to use after
-	center.erase(center.begin() + i);
-	radius.erase(radius.begin() + i);
-	boundRect.erase(boundRect.begin() + i);  
-	hierarchy.erase(hierarchy.begin() + i);
-	contours.erase(contours.begin() + i--);
-	}*/
-    }
-    std::cout << "Passed contours: " << before - contours.size() << "\n";
-    for(int i = 0; i< contours.size(); i++ )
-    {
-	std::stringstream ss;
-	ss << i;
-	if (radius[i] < 1) radius[i] = 1.0f;
-	radius[i] += 1.5;
-	//    cv::drawContours( dst, contours, i, cv::Scalar(0), -1, 8, hierarchy, 0, cv::Point() );
-	//  cv::drawContours(drawing, contours, i, cv::Scalar(255,255,255),-1,8,hierarchy,0,cv::Point());
-	cv::circle(dst, center[i], radius[i], cv::Scalar(0),-1);
-	cv::circle(drawing, center[i], radius[i], cv::Scalar(255,255,255),-1);
-	cv::putText(drawing,ss.str() , center[i], cv::FONT_HERSHEY_SCRIPT_SIMPLEX, 1,
-		cv::Scalar(255,0,0), 3, 3);
-    }
-    std::cout << "contour count: " << contours.size() << "\n";
-
-    //  imshow(path, dst);
-
-    //imshow("canny", dst);
-    //  imshow(path+"_contour", drawing);
-    /*
-       cv::waitKey(0);*/
-    cv::Mat tapes_copy = tapes.clone();
-    cv::addWeighted(dst, 0.5, tapes_copy, 0.5, 0.0, tapes);
-    return;
 }
 
 
